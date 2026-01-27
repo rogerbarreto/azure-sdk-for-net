@@ -5,6 +5,7 @@ using System;
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,9 +15,21 @@ using OpenAI.Responses;
 namespace Azure.AI.Projects.OpenAI;
 
 #pragma warning disable SCME0001
+#pragma warning disable S3011 // Reflection should not be used to increase accessibility of classes, methods, or fields
 
 public partial class ProjectResponsesClient : ResponsesClient
 {
+    // Reflection delegate to call the base ResponsesClient.CreatePerCallOptions internal method
+    private static readonly Func<ResponsesClient, CreateResponseOptions, CreateResponseOptions> _baseCreatePerCallOptions =
+        (Func<ResponsesClient, CreateResponseOptions, CreateResponseOptions>)
+        typeof(ResponsesClient).GetMethod(
+            "CreatePerCallOptions",
+            BindingFlags.NonPublic | BindingFlags.Instance,
+            null,
+            new[] { typeof(CreateResponseOptions) },
+            null)
+        .CreateDelegate(typeof(Func<ResponsesClient, CreateResponseOptions, CreateResponseOptions>));
+
     private readonly string _defaultModelName;
     private readonly string _defaultAgentName;
     private readonly string _defaultAgentVersion;
@@ -94,13 +107,6 @@ public partial class ProjectResponsesClient : ResponsesClient
     protected ProjectResponsesClient()
     { }
 
-    public override ClientResult<ResponseResult> CreateResponse(CreateResponseOptions options, CancellationToken cancellationToken = default)
-    {
-        Argument.AssertNotNull(options, nameof(options));
-        ApplyClientDefaults(options);
-        return base.CreateResponse(options, cancellationToken);
-    }
-
     public override ClientResult<ResponseResult> CreateResponse(IEnumerable<ResponseItem> inputItems, string previousResponseId = null, CancellationToken cancellationToken = default)
     {
         Argument.AssertNotNull(inputItems, nameof(inputItems));
@@ -112,8 +118,7 @@ public partial class ProjectResponsesClient : ResponsesClient
         {
             options.InputItems.Add(inputItem);
         }
-        ApplyClientDefaults(options);
-        return base.CreateResponse(inputItems, previousResponseId, cancellationToken);
+        return base.CreateResponse(options, cancellationToken);
     }
 
     public override ClientResult<ResponseResult> CreateResponse(string userInputText, string previousResponseId = null, CancellationToken cancellationToken = default)
@@ -124,15 +129,7 @@ public partial class ProjectResponsesClient : ResponsesClient
             PreviousResponseId = previousResponseId,
             InputItems = { ResponseItem.CreateUserMessageItem(userInputText) },
         };
-        ApplyClientDefaults(options);
         return base.CreateResponse(options, cancellationToken);
-    }
-
-    public override Task<ClientResult<ResponseResult>> CreateResponseAsync(CreateResponseOptions options, CancellationToken cancellationToken = default)
-    {
-        Argument.AssertNotNull(options, nameof(options));
-        ApplyClientDefaults(options);
-        return base.CreateResponseAsync(options, cancellationToken);
     }
 
     public override Task<ClientResult<ResponseResult>> CreateResponseAsync(IEnumerable<ResponseItem> inputItems, string previousResponseId = null, CancellationToken cancellationToken = default)
@@ -146,8 +143,6 @@ public partial class ProjectResponsesClient : ResponsesClient
         {
             options.InputItems.Add(inputItem);
         }
-        ApplyClientDefaults(options);
-
         return base.CreateResponseAsync(options, cancellationToken);
     }
 
@@ -159,15 +154,7 @@ public partial class ProjectResponsesClient : ResponsesClient
             PreviousResponseId = previousResponseId,
             InputItems = { ResponseItem.CreateUserMessageItem(userInputText) },
         };
-        ApplyClientDefaults(options);
         return base.CreateResponseAsync(options, cancellationToken);
-    }
-
-    public override CollectionResult<StreamingResponseUpdate> CreateResponseStreaming(CreateResponseOptions options, CancellationToken cancellationToken = default)
-    {
-        Argument.AssertNotNull(options, nameof(options));
-        ApplyClientDefaults(options);
-        return base.CreateResponseStreaming(options, cancellationToken);
     }
 
     public override CollectionResult<StreamingResponseUpdate> CreateResponseStreaming(IEnumerable<ResponseItem> inputItems, string previousResponseId = null, CancellationToken cancellationToken = default)
@@ -182,7 +169,6 @@ public partial class ProjectResponsesClient : ResponsesClient
         {
             options.InputItems.Add(inputItem);
         }
-        ApplyClientDefaults(options);
         return base.CreateResponseStreaming(options, cancellationToken);
     }
 
@@ -195,15 +181,7 @@ public partial class ProjectResponsesClient : ResponsesClient
             PreviousResponseId = previousResponseId,
             InputItems = { ResponseItem.CreateUserMessageItem(userInputText) },
         };
-        ApplyClientDefaults(options);
         return base.CreateResponseStreaming(options, cancellationToken);
-    }
-
-    public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(CreateResponseOptions options, CancellationToken cancellationToken = default)
-    {
-        Argument.AssertNotNull(options, nameof(options));
-        ApplyClientDefaults(options);
-        return base.CreateResponseStreamingAsync(options, cancellationToken);
     }
 
     public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(IEnumerable<ResponseItem> inputItems, string previousResponseId = null, CancellationToken cancellationToken = default)
@@ -218,7 +196,6 @@ public partial class ProjectResponsesClient : ResponsesClient
         {
             options.InputItems.Add(inputItem);
         }
-        ApplyClientDefaults(options);
         return base.CreateResponseStreamingAsync(options, cancellationToken);
     }
 
@@ -231,7 +208,6 @@ public partial class ProjectResponsesClient : ResponsesClient
             PreviousResponseId = previousResponseId,
             InputItems = { ResponseItem.CreateUserMessageItem(userInputText) },
         };
-        ApplyClientDefaults(options);
         return base.CreateResponseStreamingAsync(options, cancellationToken);
     }
 
@@ -305,6 +281,57 @@ public partial class ProjectResponsesClient : ResponsesClient
                 options.Patch.Remove("$.model"u8);
             }
         }
+    }
+
+    /// <summary>
+    /// Applies client defaults and base CreatePerCallOptions transformations to the options.
+    /// This method uses reflection to call the base ResponsesClient.CreatePerCallOptions,
+    /// then applies Azure AI Projects-specific defaults.
+    /// </summary>
+    private CreateResponseOptions ApplyAllDefaults(CreateResponseOptions options)
+    {
+        // First, call the base CreatePerCallOptions via reflection to apply OpenAI SDK defaults (like model injection)
+        options = _baseCreatePerCallOptions(this, options);
+
+        // Then apply Azure AI Projects-specific defaults
+        ApplyClientDefaults(options);
+
+        return options;
+    }
+
+    /// <summary>
+    /// Overrides the protocol method to apply Azure AI Projects-specific defaults.
+    /// This ensures that agent references, conversation IDs, and model settings are applied
+    /// even when protocol methods are called directly (e.g., by MEAI).
+    /// </summary>
+    public override ClientResult CreateResponse(BinaryContent content, RequestOptions options = null)
+    {
+        // Deserialize the BinaryContent to CreateResponseOptions, apply transformations, re-serialize
+        var createOptions = DeserializeCreateResponseOptions(content);
+        createOptions = ApplyAllDefaults(createOptions);
+        return base.CreateResponse((BinaryContent)createOptions, options);
+    }
+
+    /// <summary>
+    /// Overrides the protocol method to apply Azure AI Projects-specific defaults.
+    /// This ensures that agent references, conversation IDs, and model settings are applied
+    /// even when protocol methods are called directly (e.g., by MEAI).
+    /// </summary>
+    public override async Task<ClientResult> CreateResponseAsync(BinaryContent content, RequestOptions options = null)
+    {
+        // Deserialize the BinaryContent to CreateResponseOptions, apply transformations, re-serialize
+        var createOptions = DeserializeCreateResponseOptions(content);
+        createOptions = ApplyAllDefaults(createOptions);
+        return await base.CreateResponseAsync((BinaryContent)createOptions, options).ConfigureAwait(false);
+    }
+
+    private static CreateResponseOptions DeserializeCreateResponseOptions(BinaryContent content)
+    {
+        // BinaryContent from CreateResponseOptions can be deserialized using ModelReaderWriter
+        using var stream = new System.IO.MemoryStream();
+        content.WriteTo(stream, default);
+        var binaryData = BinaryData.FromBytes(stream.ToArray());
+        return ModelReaderWriter.Read<CreateResponseOptions>(binaryData, ModelReaderWriterOptions.Json, OpenAIContext.Default);
     }
 
     private static ResponseResult DeserializeResponseResult(JsonElement element, ModelReaderWriterOptions options)
