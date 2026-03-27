@@ -250,5 +250,12 @@ namespace Azure.AI.Projects
     [ModelReaderWriterBuildable(typeof(WeeklyRecurrenceSchedule))]
     public partial class AzureAIProjectsContext : ModelReaderWriterContext
     {
+        // Manually added — normally emitted by System.ClientModel source generator.
+        // Required when referencing local SCM via ProjectReference.
+#nullable enable
+        private static AzureAIProjectsContext? _azureAIProjectsContext;
+#nullable disable
+        /// <summary>Gets the default instance.</summary>
+        public static AzureAIProjectsContext Default => _azureAIProjectsContext ??= new();
     }
 }

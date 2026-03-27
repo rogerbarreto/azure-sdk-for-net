@@ -49,7 +49,7 @@ public partial class AIProjectMemoryStoresOperations
         Argument.AssertNotNullOrEmpty(memoryStoreName, nameof(memoryStoreName));
         Argument.AssertNotNull(options, nameof(options));
 
-        ClientResult result = await SearchMemoriesAsync(memoryStoreName, BinaryContent.Create(ModelReaderWriter.Write(options, ModelSerializationExtensions.WireOptions, AzureAIProjectsContext.Default)), cancellationToken.CanBeCanceled ? new RequestOptions { CancellationToken = cancellationToken } : null).ConfigureAwait(false);
+        ClientResult result = await SearchMemoriesAsync(memoryStoreName, BinaryContent.Create(ModelReaderWriter.Write(options, ModelSerializationExtensions.WireOptions, AzureAIProjectsContext.Default)), cancellationToken.ToRequestOptions()).ConfigureAwait(false);
         return ClientResult.FromValue((MemoryStoreSearchResponse)result, result.GetRawResponse());
     }
 
