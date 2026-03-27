@@ -14,17 +14,17 @@ namespace System.ClientModel.Primitives;
 /// <see cref="CancellationTokenExtensions.WithRequestOptions"/> to flow
 /// <see cref="RequestOptions"/> through convenience methods without changing their signatures.
 /// </remarks>
-internal sealed class RequestOptionsScope : IDisposable
+public sealed class RequestOptionsScope : IDisposable
 {
     private static readonly AsyncLocal<RequestOptionsScope?> _current = new();
 
     /// <summary>Gets the current ambient scope, if any.</summary>
-    internal static RequestOptionsScope? Current => _current.Value;
+    public static RequestOptionsScope? Current => _current.Value;
 
     private readonly RequestOptionsScope? _parent;
 
     /// <summary>Gets the <see cref="RequestOptions"/> associated with this scope.</summary>
-    internal RequestOptions Options { get; }
+    public RequestOptions Options { get; }
 
     internal RequestOptionsScope(RequestOptions options)
     {
