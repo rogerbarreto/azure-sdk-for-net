@@ -32,6 +32,5 @@
 
   <ItemGroup>
     <Compile Include="$(AzureCoreSharedSources)ExperimentalAttribute.cs" LinkBase="Shared" />
-    <Compile Include="$(AzureCoreSharedSources)AppContextSwitchHelper.cs" LinkBase="Shared" />
   </ItemGroup>
 </Project>

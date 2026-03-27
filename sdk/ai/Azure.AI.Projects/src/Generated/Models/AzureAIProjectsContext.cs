@@ -252,7 +252,9 @@ namespace Azure.AI.Projects
     {
         // Manually added — normally emitted by System.ClientModel source generator.
         // Required when referencing local SCM via ProjectReference.
+#nullable enable
         private static AzureAIProjectsContext? _azureAIProjectsContext;
+#nullable disable
         /// <summary>Gets the default instance.</summary>
         public static AzureAIProjectsContext Default => _azureAIProjectsContext ??= new();
     }

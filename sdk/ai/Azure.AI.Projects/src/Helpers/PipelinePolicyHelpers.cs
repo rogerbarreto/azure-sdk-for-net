@@ -59,16 +59,17 @@ internal static partial class PipelinePolicyHelpers
                     }
                     if (request?.Uri is Uri requestUri)
                     {
-                        string uriString = requestUri.AbsoluteUri;
-                        if (!uriString.Contains($"{key}="))
+                        RawRequestUriBuilder builder = new();
+                        builder.Reset(requestUri);
+                        if (!builder.Query.Contains(key))
                         {
                             string value = valueGenerator.Invoke();
                             if (!string.IsNullOrEmpty(value))
                             {
-                                string separator = uriString.Contains("?") ? "&" : "?";
-                                request.Uri = new Uri($"{uriString}{separator}{key}={Uri.EscapeDataString(value)}");
+                                builder.AppendQuery(key, value, escapeValue: true);
                             }
                         }
+                        request.Uri = builder.ToUri();
                     }
                 }),
                 PipelinePosition.PerCall);
